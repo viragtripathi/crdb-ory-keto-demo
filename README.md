@@ -35,7 +35,7 @@ crdb-ory-keto-demo/
 │   ├── keto/             # HTTP client for checks
 │   └── metrics/          # Prometheus integration
 ├── scripts/
-│   └── build\_proto\_and\_run.sh  # full workflow script
+│   └── run.sh  # full workflow script
 ├── config/
 │   └── config.yaml
 ├── docker-compose.yml
