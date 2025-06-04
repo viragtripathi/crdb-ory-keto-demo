@@ -1,10 +1,3 @@
-Awesome — let’s start with **Step 1**: your comprehensive, production-grade `README.md`.
-
----
-
-## 📘 `README.md`
-
-```markdown
 # crdb-ory-keto-demo
 
 A workload simulator for [Ory Keto](https://www.ory.sh/keto) + [CockroachDB](https://www.cockroachlabs.com/), designed for performance benchmarking, access control validation, and large-scale POC demos.
@@ -77,7 +70,7 @@ workload:
 Override any config value via command-line:
 
 | Flag                  | Description                          |
-| --------------------- | ------------------------------------ |
+|-----------------------|--------------------------------------|
 | `--tuple-count`       | Number of tuples to insert           |
 | `--concurrency`       | Number of parallel goroutines        |
 | `--checks-per-second` | Max checks per second per worker     |
@@ -221,7 +214,7 @@ make clean
   --tuple-count=10000 \
   --concurrency=50 \
   --checks-per-second=20 \
-  --log-file=sim-run.log
+  --log-file=crdb-keto-sim-run.log
 ```
 
 The binary will:
@@ -232,3 +225,9 @@ The binary will:
 * Output summary stats and logs
 
 ---
+
+## 🖥️ Sample Run Output
+
+Here's an example run with 10,000 tuples, 50 workers, and 20 checks/sec:
+
+![CLI output of workload simulator](./crdb-ory-keto-demo.png)

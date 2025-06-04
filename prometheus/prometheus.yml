@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'crdb-ory-keto-demo'
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ['localhost:2112']
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: .*
+        action: keep

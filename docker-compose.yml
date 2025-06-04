@@ -1,0 +1,33 @@
+version: '3.9'
+
+services:
+  cockroach:
+    image: cockroachdb/cockroach:latest
+    command: start-single-node --insecure
+    container_name: cockroachdb
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - crdb-data:/cockroach/cockroach-data
+
+  keto:
+    image: oryd/keto:latest
+    command: serve --config /keto/config.yaml
+    container_name: keto
+    volumes:
+      - ./keto/config.yaml:/keto/config.yaml
+    ports:
+      - "4466:4466"  # read
+      - "4467:4467"  # write
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+volumes:
+  crdb-data:

@@ -3,16 +3,16 @@ dsn: memory
 log:
   level: debug
 
-serve:
-  grpc:
-    host: 0.0.0.0
-    port: 4467
-  http:
-    host: 0.0.0.0
-    port: 4466
-
 namespaces:
   - id: 0
     name: documents
   - id: 1
     name: users
+
+serve:
+  read:
+    host: 0.0.0.0
+    port: 4466
+  write:
+    host: 0.0.0.0
+    port: 4467
