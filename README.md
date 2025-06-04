@@ -161,22 +161,6 @@ rm run.log
 
 ---
 
-Yes — it’s absolutely worth updating the README to include the binary build and usage instructions.
-
-Providing precompiled binaries (or simple build instructions) is standard for open-source CLI tools. It:
-
-* ✅ Makes onboarding faster for new users
-* ✅ Avoids Go dependency setup
-* ✅ Encourages adoption by developers and SREs in CI/CD or automation scripts
-
----
-
-## ✅ Updated `README.md` Section to Add
-
-Append this to your README after the **“Run Everything with a Script”** section:
-
----
-
 ### 🛠️ Build as a CLI Binary
 
 You can build and distribute the simulator as a standalone CLI:
