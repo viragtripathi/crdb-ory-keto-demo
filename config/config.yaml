@@ -1,0 +1,11 @@
+# Configuration file for workload simulator
+database:
+  url: "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
+
+keto:
+  base_url: "http://localhost:4466"
+
+workload:
+  tuple_count: 1000
+  concurrency: 10
+  checks_per_second: 5
