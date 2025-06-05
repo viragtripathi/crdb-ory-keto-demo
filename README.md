@@ -282,3 +282,62 @@ Example:
 ```bash
 tail -f bench_10000_20.log
 ```
+---
+
+## ❓ Why Use the Ory Keto API in This Project?
+
+This simulator doesn't just benchmark CockroachDB — it also mimics **real-world access control workflows** by calling Ory Keto's REST APIs.
+
+Here’s why the API calls are important:
+
+### ✅ 1. Realistic Tuple Ingestion
+
+Instead of just writing to the database, the simulator **mirrors every relation tuple** to:
+
+```http
+PUT /admin/relation-tuples
+```
+
+This simulates how actual applications write permissions to Keto — through its API — not through direct database access.
+
+---
+
+### ✅ 2. Access Control Validation
+
+After inserting a tuple, the simulator performs a permission check by calling:
+
+```http
+POST /relation-tuples/check
+```
+
+This:
+
+* Validates that the tuple was properly registered
+* Measures real API response time under load
+* Ensures that access control is actually functioning
+
+---
+
+### ✅ 3. API Load Is the Real Benchmark
+
+By using the API, the simulator:
+
+* ✅ Benchmarks **Keto’s gRPC/HTTP pipeline**, not just CockroachDB
+* ✅ Simulates **true production behavior**
+* ✅ Identifies rate limits, contention, or failure patterns in access checks
+
+---
+
+### 🚫 Why Not Just Write to the DB?
+
+Because direct DB writes:
+
+* Bypass Keto’s consistency rules
+* Do not trigger its internal indexing or validation
+* Would produce misleading benchmark results
+
+---
+
+## ✅ TL;DR
+
+> Using the API is essential to simulate real-world usage, validate authorization correctness, and benchmark the actual control path — not just storage speed.
