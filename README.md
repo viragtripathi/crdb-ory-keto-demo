@@ -69,13 +69,15 @@ workload:
 
 Override any config value via command-line:
 
-| Flag                  | Description                          |
-|-----------------------|--------------------------------------|
-| `--tuple-count`       | Number of tuples to insert           |
-| `--concurrency`       | Number of parallel goroutines        |
-| `--checks-per-second` | Max checks per second per worker     |
-| `--dry-run`           | Skip DB/API calls, log only          |
-| `--log-file=out.log`  | Write logs to file instead of stdout |
+| Flag                  | Description                                                |
+|-----------------------|------------------------------------------------------------|
+| `--tuple-count`       | Number of tuples to insert                                 |
+| `--concurrency`       | Number of goroutines                                       |
+| `--checks-per-second` | Permission check throttle per goroutine                    |
+| `--log-file=...`      | Log output to a file instead of stdout                     |
+| `--dry-run`           | Simulate load without writing to DB or hitting Keto APIs   |
+| `--summary`           | Show config and exit                                       |
+| `--verbose=false`     | Disable logs completely for performance-focused benchmarks |
 
 ---
 
@@ -93,6 +95,17 @@ go run cmd/main.go --tuple-count=5000 --concurrency=20 --dry-run
 DATABASE_URL="postgresql://root@<host>:26257/defaultdb?sslmode=require" \
 go run cmd/main.go --tuple-count=10000 --concurrency=50 --checks-per-second=10
 ```
+
+Run with verbose output:
+````gotemplate
+./crdb-ory-keto-demo --tuple-count=1000 --concurrency=10 --checks-per-second=5
+````
+
+Run quietly and log to file:
+````gotemplate
+./crdb-ory-keto-demo --tuple-count=10000 --concurrency=50 --log-file=run.log --verbose=false
+````
+
 
 ### Log to file:
 

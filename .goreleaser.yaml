@@ -1,0 +1,33 @@
+project_name: crdb-ory-keto-demo
+builds:
+  - id: crdb-ory-keto-demo
+    main: ./cmd/main.go
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - config/config.yaml
+      - scripts/benchmark.sh
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+release:
+  github:
+    owner: viragtripathi
+    name: crdb-ory-keto-demo
+    draft: true
+    prerelease: false
+
