@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+    initSchema := flag.Bool("init-schema", false, "Create required tables in the database and exit")
 	tupleCount := flag.Int("tuple-count", 0, "Override number of tuples to insert")
 	concurrency := flag.Int("concurrency", 0, "Override number of concurrent workers")
 	checksPerSecond := flag.Int("checks-per-second", 0, "Override checks per second")
@@ -60,11 +61,19 @@ func main() {
         connStr = config.AppConfig.Database.URL
     }
 
-    if !*dryRun {
-        if err := db.Connect(connStr); err != nil {
-            log.Fatalf("❌ DB connection failed: %v", err)
-        }
-        defer db.Close()
+    if !*dryRun || *initSchema {
+    	if err := db.Connect(connStr); err != nil {
+    		log.Fatalf("❌ DB connection failed: %v", err)
+    	}
+    	defer db.Close()
+    }
+
+    if *initSchema {
+    	if err := db.InitSchema(); err != nil {
+    		log.Fatalf("❌ Failed to initialize schema: %v", err)
+    	}
+    	log.Println("✅ Schema initialized successfully.")
+    	return
     }
 
 	metrics.Init()
