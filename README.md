@@ -22,30 +22,6 @@ This tool inserts relation tuples into CockroachDB, mirrors them to Ory Keto’s
 
 ---
 
-## 🧰 Folder Structure
-
-```
-
-crdb-ory-keto-demo/
-├── cmd/
-│   └── main.go
-├── internal/
-│   ├── config/           # YAML loader
-│   ├── db/               # CockroachDB insert logic
-│   ├── keto/             # HTTP client for checks
-│   └── metrics/          # Prometheus integration
-├── scripts/
-│   └── run.sh  # full workflow script
-├── config/
-│   └── config.yaml
-├── docker-compose.yml
-├── run.sh
-└── README.md
-
-````
-
----
-
 ## ⚙️ Configuration
 
 ### 📁 `config/config.yaml`
