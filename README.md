@@ -69,15 +69,16 @@ workload:
 
 Override any config value via command-line:
 
-| Flag                  | Description                                                |
-|-----------------------|------------------------------------------------------------|
-| `--tuple-count`       | Number of tuples to insert                                 |
-| `--concurrency`       | Number of goroutines                                       |
-| `--checks-per-second` | Permission check throttle per goroutine                    |
-| `--log-file=...`      | Log output to a file instead of stdout                     |
-| `--dry-run`           | Simulate load without writing to DB or hitting Keto APIs   |
-| `--summary`           | Show config and exit                                       |
-| `--verbose=false`     | Disable logs completely for performance-focused benchmarks |
+| Flag                  | Description                                       |
+|-----------------------|---------------------------------------------------|
+| `--init-schema`       | Creates required tables in the database and exits |
+| `--tuple-count`       | Number of tuples to insert                        |
+| `--concurrency`       | Number of goroutines for load                     |
+| `--checks-per-second` | Max checks/sec per worker                         |
+| `--log-file`          | Write logs to file                                |
+| `--dry-run`           | Simulate load without DB/API calls                |
+| `--verbose=false`     | Disable logging completely                        |
+| `--summary`           | Show summary config and exit                      |
 
 ---
 
@@ -206,6 +207,13 @@ make clean
 
 ### 🧪 Example usage with binary
 
+This will create the following tables:
+* keto_relation_tuples
+* keto_uuid_mappings
+```bash
+DATABASE_URL="postgresql://<user>@<host>:26257/defaultdb?sslmode=require" \
+./crdb-ory-keto-demo --init-schema
+```
 ```bash
 ./crdb-ory-keto-demo \
   --tuple-count=10000 \
