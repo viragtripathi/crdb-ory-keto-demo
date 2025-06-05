@@ -90,21 +90,45 @@ func RunGenerator(dryRun bool) {
 						SubjectID: subjectFull,
 					}
 
-					body, _ := json.Marshal(ketoWrite)
-					req, err := http.NewRequest(http.MethodPut, "http://localhost:4467/admin/relation-tuples", bytes.NewBuffer(body))
-					if err != nil {
-						log.Printf("❌ Failed to build PUT request to Keto: %v", err)
-					} else {
-						req.Header.Set("Content-Type", "application/json")
-						client := &http.Client{}
-						resp, err := client.Do(req)
-						if err != nil || resp.StatusCode >= 300 {
-							respBody, _ := io.ReadAll(resp.Body)
-							log.Printf("⚠️  Failed to PUT to Keto: status=%v body=%s error=%v", resp.StatusCode, string(respBody), err)
-						} else {
-							log.Printf("📤 Tuple mirrored to Keto successfully")
-						}
-					}
+                    body, _ := json.Marshal(ketoWrite)
+                    req, err := http.NewRequest(http.MethodPut, "http://localhost:4467/admin/relation-tuples", bytes.NewBuffer(body))
+                    if err != nil {
+                    	log.Printf("❌ Failed to build PUT request to Keto: %v", err)
+                    } else {
+                    	req.Header.Set("Content-Type", "application/json")
+                    	client := &http.Client{}
+
+                    	var resp *http.Response
+                    	for attempt := 1; attempt <= 3; attempt++ {
+                    		resp, err = client.Do(req)
+                    		if resp != nil {
+                    			defer resp.Body.Close()
+                    		}
+
+                    		if err == nil && resp.StatusCode < 300 {
+                    			log.Printf("📤 Tuple mirrored to Keto successfully")
+                    			break
+                    		}
+
+                    		// Retry only for serialization conflict
+                    		if attempt < 3 && resp != nil {
+                    			bodyBytes, _ := io.ReadAll(resp.Body)
+                    			if resp.StatusCode == 400 && bytes.Contains(bodyBytes, []byte("serialize access")) {
+                    				log.Printf("🔁 Retry %d due to serialization conflict: %s", attempt, string(bodyBytes))
+                    				time.Sleep(100 * time.Millisecond)
+                    				continue
+                    			}
+
+                    			log.Printf("⚠️  PUT to Keto failed (non-retriable): status=%v", resp.StatusCode)
+                    			break
+                    		}
+
+                    		if attempt == 3 && resp != nil {
+                    			respBody, _ := io.ReadAll(resp.Body)
+                    			log.Printf("❌ Final failure to PUT to Keto: status=%v body=%s error=%v", resp.StatusCode, string(respBody), err)
+                    		}
+                    	}
+                    }
 				}
 
 				<-ticker.C
