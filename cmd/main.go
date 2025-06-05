@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"io"
 
 	"github.com/viragtripathi/crdb-ory-keto-demo/internal/config"
 	"github.com/viragtripathi/crdb-ory-keto-demo/internal/db"
@@ -17,17 +18,28 @@ func main() {
 	checksPerSecond := flag.Int("checks-per-second", 0, "Override checks per second")
 	dryRun := flag.Bool("dry-run", false, "Simulate workload without DB or API calls")
 	logFile := flag.String("log-file", "", "Path to log output file")
+	verbose := flag.Bool("verbose", true, "Enable verbose logging (default: true)")
 
 	flag.Parse()
 
-	if *logFile != "" {
-		f, err := os.Create(*logFile)
-		if err != nil {
-			log.Fatalf("❌ Failed to create log file: %v", err)
-		}
-		defer f.Close()
-		log.SetOutput(f)
-	}
+    if *logFile != "" {
+        f, err := os.Create(*logFile)
+        if err != nil {
+            log.Fatalf("❌ Failed to create log file: %v", err)
+        }
+        defer f.Close()
+
+        if *verbose {
+            mw := io.MultiWriter(os.Stdout, f)
+            log.SetOutput(mw)
+            os.Stdout = f
+            os.Stderr = f
+        } else {
+            log.SetOutput(io.Discard)
+        }
+    } else if !*verbose {
+        log.SetOutput(io.Discard)
+    }
 
 	if err := config.LoadConfig(); err != nil {
 		log.Fatalf("❌ Config error: %v", err)

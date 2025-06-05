@@ -128,14 +128,13 @@ func RunGenerator(dryRun bool) {
 
 	wg.Wait()
 
-	fmt.Println("✅ Tuple generation and permission checks complete")
-	fmt.Printf("🔢 Total tuples: %d\n", cfg.TupleCount)
-	fmt.Printf("⚙️  Concurrency: %d\n", cfg.Concurrency)
-	fmt.Printf("🚦 Checks/sec:  %d\n", cfg.ChecksPerSecond)
-	fmt.Printf("🧪 Mode:        %s\n", map[bool]string{true: "DRY RUN", false: "LIVE"}[dryRun])
-	if !dryRun {
-		fmt.Printf("📈 Allowed:     %d\n", allowedCount)
-		fmt.Printf("📉 Denied:      %d\n", deniedCount)
-		fmt.Printf("🚨 Failed inserts: %d\n", failedInserts)
-	}
+    log.Println("✅ Tuple generation and permission checks complete")
+    log.Printf("🔢 Total tuples: %d", cfg.TupleCount)
+    log.Printf("⚙️  Concurrency: %d", cfg.Concurrency)
+    log.Printf("🚦 Checks/sec:  %d", cfg.ChecksPerSecond)
+    log.Printf("🧪 Mode:        %s", map[bool]string{true: "DRY RUN", false: "LIVE"}[dryRun])
+    log.Printf("📈 Allowed:     %d", allowedCount)
+    log.Printf("📉 Denied:      %d", deniedCount)
+    log.Printf("🚨 Failed inserts: %d", failedInserts)
+
 }

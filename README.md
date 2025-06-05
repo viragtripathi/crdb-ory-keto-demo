@@ -215,3 +215,73 @@ The binary will:
 Here's an example run with 10,000 tuples, 50 workers, and 20 checks/sec:
 
 ![CLI output of workload simulator](./crdb-ory-keto-demo.png)
+
+---
+
+### 🧪 Benchmarking Load & Throughput
+
+You can run predefined load tests using the included `benchmark.sh` script. This helps measure:
+
+* Ingestion throughput to CockroachDB
+* Permission check throughput via Ory Keto
+* Total run time
+* Success/failure breakdown
+
+---
+
+### 📁 `scripts/benchmark.sh`
+
+This script will:
+
+* Run a matrix of test cases (tuples × concurrency × checks/sec)
+* Time each run
+* Save logs per test
+* Append results to `benchmark_results.csv`
+
+---
+
+### ✅ Example Matrix (can be modified)
+
+```bash
+matrix=(
+  "1000 5 5"
+  "5000 10 10"
+  "10000 20 20"
+  "25000 50 25"
+)
+```
+
+---
+
+### ▶️ To Run
+
+```bash
+./scripts/benchmark.sh
+```
+
+---
+
+### 📝 Results Format (CSV)
+
+Each run adds a row to `benchmark_results.csv`:
+
+```csv
+timestamp,db_type,tuple_count,concurrency,checks_per_sec,duration_sec,allowed,denied,failed
+2025-06-04T19:15:00,CockroachDB,1000,5,5,8,999,1,0
+```
+
+---
+
+### 📁 Per-Run Logs
+
+Each test writes its own log to:
+
+```
+bench_<tuple_count>_<concurrency>.log
+```
+
+Example:
+
+```bash
+tail -f bench_10000_20.log
+```
