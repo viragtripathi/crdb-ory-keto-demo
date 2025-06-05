@@ -1,3 +1,5 @@
+version: 2
+
 project_name: crdb-ory-keto-demo
 builds:
   - id: crdb-ory-keto-demo
