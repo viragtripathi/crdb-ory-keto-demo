@@ -1,16 +1,12 @@
 version: 2
 
 project_name: crdb-ory-keto-demo
+
 builds:
   - id: crdb-ory-keto-demo
     main: ./cmd/main.go
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
     ldflags:
       - -s -w
 
@@ -27,9 +23,11 @@ checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
 
 release:
-  github:
-    owner: viragtripathi
-    name: crdb-ory-keto-demo
-    draft: true
-    prerelease: false
+  draft: true
+  prerelease: false
 
+# Tell GoReleaser which GitHub repo to use
+git:
+  tag_sort: semver
+
+# GitHub repo info is automatically detected from your origin remote
