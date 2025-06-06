@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  keto-1:
+    image: oryd/keto:v0.14.0
+    container_name: keto-1
+    hostname: keto-1
+    command: serve --config /config/config.local.yaml
+    volumes:
+      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
+
+  keto-2:
+    image: oryd/keto:v0.14.0
+    container_name: keto-2
+    hostname: keto-2
+    command: serve --config /config/config.local.yaml
+    volumes:
+      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
+
+  keto-3:
+    image: oryd/keto:v0.14.0
+    container_name: keto-3
+    hostname: keto-3
+    command: serve --config /config/config.local.yaml
+    volumes:
+      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
+
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    ports:
+      - "4466:4466"
+      - "4467:4467"
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    depends_on:
+      - keto
+    networks:
+      - keto-net
+
+networks:
+  keto-net:
+    name: keto-net

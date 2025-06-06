@@ -23,6 +23,8 @@ archives:
       - keto/**
       - scripts/**
       - docker-compose.yml
+      - docker-compose.override.yml
+      - haproxy/haproxy.cfg
       - prometheus/**
 
 checksum:

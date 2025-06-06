@@ -21,22 +21,23 @@ services:
     healthcheck:
       test: ["NONE"]
 
-  keto:
-    image: oryd/keto:v0.14.0
-    command: serve --config /config/config.local.yaml
-    container_name: keto
-    volumes:
-      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
-    ports:
-      - "4466:4466"
-      - "4467:4467"
-    depends_on:
-      - keto-migrate
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4466/health/alive | grep -q 'ok'"]
-      interval: 5s
-      timeout: 2s
-      retries: 5
+# comment out the keto service for keto scaling i.e. docker-compose.override.yml
+#  keto:
+#    image: oryd/keto:v0.14.0
+#    command: serve --config /config/config.local.yaml
+#    container_name: keto
+#    volumes:
+#      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
+#    ports:
+#      - "4466:4466"
+#      - "4467:4467"
+#    depends_on:
+#      - keto-migrate
+#    healthcheck:
+#      test: ["CMD-SHELL", "wget -qO- http://localhost:4466/health/alive | grep -q 'ok'"]
+#      interval: 5s
+#      timeout: 2s
+#      retries: 5
 
   prometheus:
     image: prom/prometheus:latest
