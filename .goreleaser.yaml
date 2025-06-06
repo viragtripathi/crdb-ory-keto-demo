@@ -23,6 +23,7 @@ archives:
       - keto/**
       - scripts/**
       - docker-compose.yml
+      - prometheus/**
 
 checksum:
   name_template: "checksums.txt"
