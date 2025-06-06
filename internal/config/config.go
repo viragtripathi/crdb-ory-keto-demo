@@ -8,25 +8,22 @@ import (
 )
 
 type Config struct {
-	Database struct {
-		URL string `yaml:"url"`
-	} `yaml:"database"`
-
 	Keto struct {
-		BaseURL string `yaml:"base_url"`
+		WriteAPI string `yaml:"write_api"`
+		ReadAPI  string `yaml:"read_api"`
 	} `yaml:"keto"`
 
 	Workload struct {
-		TupleCount  int `yaml:"tuple_count"`
-		Concurrency int `yaml:"concurrency"`
+		TupleCount      int `yaml:"tuple_count"`
+		Concurrency     int `yaml:"concurrency"`
 		ChecksPerSecond int `yaml:"checks_per_second"`
 	} `yaml:"workload"`
 }
 
 var AppConfig Config
 
-func LoadConfig() error {
-	data, err := os.ReadFile("config/config.yaml")
+func LoadConfig(path string) error {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read config file: %w", err)
 	}

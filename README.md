@@ -1,294 +1,184 @@
 # crdb-ory-keto-demo
 
-A workload simulator for [Ory Keto](https://www.ory.sh/keto) + [CockroachDB](https://www.cockroachlabs.com/), designed for performance benchmarking, access control validation, and large-scale POC demos.
-
-This tool inserts relation tuples into CockroachDB, mirrors them to Ory Keto’s HTTP API, and performs real-time permission checks.
-
----
-
-## 🚀 Features
-
-- ✅ High-throughput **tuple ingestion** into CockroachDB
-- ✅ **Keto HTTP API** integration (`PUT /admin/relation-tuples` and `POST /relation-tuples/check`)
-- ✅ **Concurrency & throttling** controls (via CLI)
-- ✅ **Prometheus metrics**: insert latency, check counts
-- ✅ **Dry-run** mode: skip external calls, useful for perf/load planning
-- ✅ **Log to file** for analysis/replay/debug
-- ✅ **Flexible config** and CLI overrides
-- ✅ Works with:
-  - CockroachDB (local, on-prem, or cloud)
-  - Ory Keto (v0.14.0+)
-  - Docker or standalone installs
+A workload simulator and benchmarking tool for evaluating [Ory Keto](https://www.ory.sh/docs/keto) with [CockroachDB](https://www.cockroachlabs.com/).
+It simulates permission tuple insertions and checks at scale — useful for load testing and benchmarking on local or CockroachDB Cloud.
 
 ---
 
-## ⚙️ Configuration
+## 🚀 Ways to Run
 
-### 📁 `config/config.yaml`
+### 🟢 1. Quick Demo with Docker
+
+This mode runs Keto + Prometheus in Docker. You run CockroachDB **locally** or use Cockroach Cloud.
+
+```bash
+./scripts/run.sh --mode local       # for local CockroachDB
+./scripts/run.sh --mode cloud       # for CockroachDB Cloud
+```
+
+It:
+
+* Starts Keto and Prometheus
+* Runs `keto-migrate`
+* Waits for API readiness (migration + health)
+* Launches the simulator binary
+
+---
+
+### 📊 2. Benchmarking Mode
+
+Runs a full test matrix of tuple volumes, concurrency, and check rates:
+
+```bash
+./scripts/benchmark.sh --mode local
+./scripts/benchmark.sh --mode cloud
+```
+
+Results are saved to:
+
+```
+benchmark_results.csv
+```
+
+---
+
+### 🛠️ 3. Manual Binary Run
+
+```bash
+./crdb-ory-keto-demo   --tuple-count=1000   --concurrency=10   --checks-per-second=5   --workload-config=config/stress.yaml   --keto-api=http://localhost:4467   --log-file=run.log
+```
+
+You can override any value from the workload config using flags.
+
+---
+
+## ⚙️ Configuration Modes
+
+Two config files let you switch between environments:
+
+* `keto/config.local.yaml` → points to `host.docker.internal`
+* `keto/config.cloud.yaml` → points to CockroachDB Cloud
+
+Your `docker-compose.yml` is wired to:
 
 ```yaml
-database:
-  url: "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
+volumes:
+  - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.yaml
+```
 
+So switching is as easy as:
+
+```bash
+KETO_CONFIG_PATH=./keto/config.cloud.yaml ./scripts/run.sh --mode cloud
+```
+
+Or:
+
+```bash
+KETO_CONFIG_PATH=./keto/config.local.yaml ./scripts/run.sh --mode local
+```
+
+---
+
+## 📁 Workload Config Profiles
+
+You can define workload profiles like:
+
+```yaml
+# config/small.yaml
 keto:
-  base_url: "http://localhost:4466"
-
+  write_api: "http://localhost:4467"
+  read_api: "http://localhost:4466"
 workload:
-  tuple_count: 1000
-  concurrency: 10
+  tuple_count: 500
+  concurrency: 5
   checks_per_second: 5
-````
+```
 
----
-
-## 🛠 CLI Flags
-
-Override any config value via command-line:
-
-| Flag                  | Description                                       |
-|-----------------------|---------------------------------------------------|
-| `--init-schema`       | Creates required tables in the database and exits |
-| `--tuple-count`       | Number of tuples to insert                        |
-| `--concurrency`       | Number of goroutines for load                     |
-| `--checks-per-second` | Max checks/sec per worker                         |
-| `--log-file`          | Write logs to file                                |
-| `--dry-run`           | Simulate load without DB/API calls                |
-| `--verbose=false`     | Disable logging completely                        |
-| `--summary`           | Show summary config and exit                      |
-
----
-
-## 🧪 Examples
-
-### Dry run 5k tuples with 20 workers:
+Run with:
 
 ```bash
-go run cmd/main.go --tuple-count=5000 --concurrency=20 --dry-run
+./crdb-ory-keto-demo --workload-config=config/small.yaml
 ```
 
-### Full test with cloud CockroachDB:
+If not specified, the default `config/config.yaml` is used.
+
+---
+
+## 🧪 Debugging & Troubleshooting
+
+### ✅ Confirm Keto Write API is Healthy:
 
 ```bash
-DATABASE_URL="postgresql://root@<host>:26257/defaultdb?sslmode=require" \
-go run cmd/main.go --tuple-count=10000 --concurrency=50 --checks-per-second=10
+curl -s http://localhost:4467/health/alive
 ```
 
-Run with verbose output:
-````gotemplate
-./crdb-ory-keto-demo --tuple-count=1000 --concurrency=10 --checks-per-second=5
-````
-
-Run quietly and log to file:
-````gotemplate
-./crdb-ory-keto-demo --tuple-count=10000 --concurrency=50 --log-file=run.log --verbose=false
-````
-
-
-### Log to file:
+### ✅ Confirm Keto Read API is Healthy:
 
 ```bash
-go run cmd/main.go --log-file run.log
+curl -s http://localhost:4466/health/alive
 ```
 
----
-
-## 🔍 Validation
-
-### Logging output (live or in file):
-
-```
-✅ Tuple inserted into CockroachDB: user-1 -> doc-1001
-📤 Tuple mirrored to Keto successfully
-🔒 Permission check result: allowed=true
-```
-
-### Summary report:
-
-```
-✅ Tuple generation and permission checks complete
-🔢 Total tuples: 1000
-⚙️  Concurrency: 10
-🚦 Checks/sec:  5
-🧪 Mode:        LIVE
-📈 Allowed:     999
-📉 Denied:      0
-🚨 Failed inserts: 0
-```
-
----
-
-## 📊 Prometheus Metrics
-
-Available at [http://localhost:2112/metrics](http://localhost:2112/metrics)
-
-* `tuple_insert_duration_seconds`
-* `permission_check_total{result="allowed|denied"}`
-
-Add to Grafana for real-time dashboards.
-
----
-
-## 🧪 Run Everything with a Script
+### ✅ Dump final config mounted in Docker:
 
 ```bash
-./scripts/run.sh
+docker exec -it keto cat /config/config.yaml
 ```
 
-This script:
-
-* Starts Docker containers
-* Applies DB schema
-* Runs the simulator
-
----
-
-## 🧼 Clean Shutdown
+### ✅ Run Keto manually to test config:
 
 ```bash
-docker compose down -v
-rm run.log
+docker run --rm -v "$(pwd)/keto:/config" oryd/keto:v0.14.0 serve --config /config/config.yaml
+```
+
+### ✅ Show all migrations:
+
+```bash
+docker logs keto-migrate
+```
+
+### ✅ Full verify check for write+read API:
+
+```bash
+curl -i -X PUT http://localhost:4467/admin/relation-tuples \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"documents","object":"doc-123","relation":"viewer","subject_id":"user:alice"}'
+
+curl -s -X POST http://localhost:4466/relation-tuples/check \
+  -H "Content-Type: application/json" \
+  -d '{"namespace":"documents","object":"doc-123","relation":"viewer","subject_id":"user:alice"}'
 ```
 
 ---
 
-### 🛠️ Build as a CLI Binary
+### 🛑 Unreachable Keto Detection
 
-You can build and distribute the simulator as a standalone CLI:
+If Ory Keto is not reachable, you will see:
+
+```
+❌ Failed to reach Ory Keto at http://localhost:4467
+- Error: dial tcp [::1]:4467: connect: connection refused
+```
+
+The tool will exit cleanly.
+
+---
+
+## 📦 Build
+
+To build the binary locally:
 
 ```bash
 make build
 ```
 
-The compiled binary `crdb-ory-keto-demo` can then be run directly:
-
-```bash
-./crdb-ory-keto-demo --help
-```
-
-### Cross-platform builds:
-
-```bash
-make build-linux     # For Linux x86_64
-make build-mac       # For macOS ARM64 (Apple Silicon)
-make build-windows   # For Windows x86_64
-```
-
-### Clean up all binaries:
-
-```bash
-make clean
-```
-
----
-
-### 🧪 Example usage with binary
-
-This will create the following tables:
-* keto_relation_tuples
-* keto_uuid_mappings
-```bash
-DATABASE_URL="postgresql://<user>@<host>:26257/defaultdb?sslmode=require" \
-./crdb-ory-keto-demo --init-schema
-```
-```bash
-./crdb-ory-keto-demo \
-  --tuple-count=10000 \
-  --concurrency=50 \
-  --checks-per-second=20 \
-  --log-file=crdb-keto-sim-run.log
-```
-
-The binary will:
-
-* Connect to the database using `DATABASE_URL` or config fallback
-* Mirror tuples to Keto via HTTP
-* Perform permission checks with real responses
-* Output summary stats and logs
-
----
-
-## 🖥️ Sample Run Output
-
-Here's an example run with 10,000 tuples, 50 workers, and 20 checks/sec:
-
-![CLI output of workload simulator](./crdb-ory-keto-demo.png)
-
----
-
-### 🧪 Benchmarking Load & Throughput
-
-You can run predefined load tests using the included `benchmark.sh` script. This helps measure:
-
-* Ingestion throughput to CockroachDB
-* Permission check throughput via Ory Keto
-* Total run time
-* Success/failure breakdown
-
----
-
-### 📁 `scripts/benchmark.sh`
-
-This script will:
-
-* Run a matrix of test cases (tuples × concurrency × checks/sec)
-* Time each run
-* Save logs per test
-* Append results to `benchmark_results.csv`
-
----
-
-### ✅ Example Matrix (can be modified)
-
-```bash
-matrix=(
-  "1000 5 5"
-  "5000 10 10"
-  "10000 20 20"
-  "25000 50 25"
-)
-```
-
----
-
-### ▶️ To Run
-
-```bash
-./scripts/benchmark.sh
-```
-
----
-
-### 📝 Results Format (CSV)
-
-Each run adds a row to `benchmark_results.csv`:
-
-```csv
-timestamp,db_type,tuple_count,concurrency,checks_per_sec,duration_sec,allowed,denied,failed
-2025-06-04T19:15:00,CockroachDB,1000,5,5,8,999,1,0
-```
-
----
-
-### 📁 Per-Run Logs
-
-Each test writes its own log to:
-
-```
-bench_<tuple_count>_<concurrency>.log
-```
-
-Example:
-
-```bash
-tail -f bench_10000_20.log
-```
 ---
 
 ## ❓ Why Use the Ory Keto API in This Project?
 
-This simulator doesn't just benchmark CockroachDB — it also mimics **real-world access control workflows** by calling Ory Keto's REST APIs.
+This simulator doesn't just benchmark CockroachDB — it mimics **real-world access control workflows** by calling Ory Keto's REST APIs.
 
-Here’s why the API calls are important:
+Here’s why:
 
 ### ✅ 1. Realistic Tuple Ingestion
 
@@ -298,13 +188,13 @@ Instead of just writing to the database, the simulator **mirrors every relation 
 PUT /admin/relation-tuples
 ```
 
-This simulates how actual applications write permissions to Keto — through its API — not through direct database access.
+This mimics how production apps interact with Keto.
 
 ---
 
 ### ✅ 2. Access Control Validation
 
-After inserting a tuple, the simulator performs a permission check by calling:
+After inserting a tuple, the simulator performs a permission check via:
 
 ```http
 POST /relation-tuples/check
@@ -312,9 +202,9 @@ POST /relation-tuples/check
 
 This:
 
-* Validates that the tuple was properly registered
-* Measures real API response time under load
-* Ensures that access control is actually functioning
+* Validates tuple registration
+* Measures API response under load
+* Tests authorization correctness
 
 ---
 
@@ -322,22 +212,29 @@ This:
 
 By using the API, the simulator:
 
-* ✅ Benchmarks **Keto’s gRPC/HTTP pipeline**, not just CockroachDB
-* ✅ Simulates **true production behavior**
-* ✅ Identifies rate limits, contention, or failure patterns in access checks
+* Benchmarks **Keto’s REST pipeline**, not just the DB
+* Simulates real-world usage patterns
+* Surfaces rate limits or latency issues
 
 ---
 
-### 🚫 Why Not Just Write to the DB?
+### 🚫 Why Not Write Directly to the DB?
 
-Because direct DB writes:
+Because:
 
-* Bypass Keto’s consistency rules
-* Do not trigger its internal indexing or validation
-* Would produce misleading benchmark results
+* You’d bypass consistency & validation
+* Keto wouldn’t register or index those tuples
+* Benchmarks would be meaningless
 
 ---
 
 ## ✅ TL;DR
 
 > Using the API is essential to simulate real-world usage, validate authorization correctness, and benchmark the actual control path — not just storage speed.
+
+---
+
+## 📖 References
+
+* [Ory Keto Install Guide](https://www.ory.sh/docs/keto/install)
+* [CockroachDB Start Guide](https://www.cockroachlabs.com/docs/stable/start-a-local-cluster.html)

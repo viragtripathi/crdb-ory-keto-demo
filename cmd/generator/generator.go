@@ -1,29 +1,16 @@
 package generator
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/viragtripathi/crdb-ory-keto-demo/internal/config"
-	"github.com/viragtripathi/crdb-ory-keto-demo/internal/db"
 	"github.com/viragtripathi/crdb-ory-keto-demo/internal/keto"
 	"github.com/viragtripathi/crdb-ory-keto-demo/internal/metrics"
 )
-
-type KetoTupleWrite struct {
-	Namespace string `json:"namespace"`
-	Object    string `json:"object"`
-	Relation  string `json:"relation"`
-	SubjectID string `json:"subject_id"`
-}
 
 func RunGenerator(dryRun bool) {
 	cfg := config.AppConfig.Workload
@@ -34,7 +21,7 @@ func RunGenerator(dryRun bool) {
 	fmt.Printf("🚧 Generating %d tuples with %d workers and max %d checks/sec...\n",
 		cfg.TupleCount, cfg.Concurrency, cfg.ChecksPerSecond)
 
-	var allowedCount, deniedCount, failedInserts int64
+	var allowedCount, deniedCount, failedWrites int64
 
 	for i := 0; i < cfg.Concurrency; i++ {
 		wg.Add(1)
@@ -44,8 +31,6 @@ func RunGenerator(dryRun bool) {
 			defer ticker.Stop()
 
 			for j := 0; j < tuplesPerWorker; j++ {
-				shardID := uuid.New()
-				nid := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 				objectUUID := uuid.New()
 				subjectUUID := uuid.New()
 
@@ -54,81 +39,13 @@ func RunGenerator(dryRun bool) {
 				subjectFull := fmt.Sprintf("user:%s", subjectUUID.String())
 
 				if !dryRun {
-					_ = db.InsertUUIDMapping(context.Background(), objectUUID, objectName)
-					_ = db.InsertUUIDMapping(context.Background(), subjectUUID, subjectName)
-
-					tuple := db.KetoTuple{
-						ShardID:             shardID,
-						NetworkID:           nid,
-						Namespace:           "documents",
-						Object:              objectUUID,
-						Relation:            "viewer",
-						SubjectID:           subjectUUID,
-						CommitTime:          time.Now().UTC(),
-						SubjectSetNamespace: nil,
-						SubjectSetObject:    nil,
-						SubjectSetRelation:  nil,
-					}
-
-					start := time.Now()
-					err := db.InsertKetoTuple(context.Background(), tuple)
-					duration := time.Since(start).Seconds()
-
+					err := keto.WriteTuple("documents", objectUUID.String(), "viewer", subjectFull)
 					if err != nil {
-						log.Printf("❌ Insert failed for %s -> %s: %v", subjectName, objectName, err)
-						failedInserts++
-						continue
+						log.Printf("❌ WriteTuple failed: %v", err)
+						failedWrites++
+					} else {
+						log.Println("📤 Tuple mirrored to Keto successfully")
 					}
-
-					log.Printf("✅ Tuple inserted into CockroachDB: %s (subject) -> %s (object)", subjectName, objectName)
-					metrics.TupleInsertDuration.Observe(duration)
-
-					ketoWrite := KetoTupleWrite{
-						Namespace: "documents",
-						Object:    objectUUID.String(),
-						Relation:  "viewer",
-						SubjectID: subjectFull,
-					}
-
-                    body, _ := json.Marshal(ketoWrite)
-                    req, err := http.NewRequest(http.MethodPut, "http://localhost:4467/admin/relation-tuples", bytes.NewBuffer(body))
-                    if err != nil {
-                    	log.Printf("❌ Failed to build PUT request to Keto: %v", err)
-                    } else {
-                    	req.Header.Set("Content-Type", "application/json")
-                    	client := &http.Client{}
-
-                    	var resp *http.Response
-                    	for attempt := 1; attempt <= 3; attempt++ {
-                    		resp, err = client.Do(req)
-                    		if resp != nil {
-                    			defer resp.Body.Close()
-                    		}
-
-                    		if err == nil && resp.StatusCode < 300 {
-                    			log.Printf("📤 Tuple mirrored to Keto successfully")
-                    			break
-                    		}
-
-                    		// Retry only for serialization conflict
-                    		if attempt < 3 && resp != nil {
-                    			bodyBytes, _ := io.ReadAll(resp.Body)
-                    			if resp.StatusCode == 400 && bytes.Contains(bodyBytes, []byte("serialize access")) {
-                    				log.Printf("🔁 Retry %d due to serialization conflict: %s", attempt, string(bodyBytes))
-                    				time.Sleep(100 * time.Millisecond)
-                    				continue
-                    			}
-
-                    			log.Printf("⚠️  PUT to Keto failed (non-retriable): status=%v", resp.StatusCode)
-                    			break
-                    		}
-
-                    		if attempt == 3 && resp != nil {
-                    			respBody, _ := io.ReadAll(resp.Body)
-                    			log.Printf("❌ Final failure to PUT to Keto: status=%v body=%s error=%v", resp.StatusCode, string(respBody), err)
-                    		}
-                    	}
-                    }
 				}
 
 				<-ticker.C
@@ -152,13 +69,16 @@ func RunGenerator(dryRun bool) {
 
 	wg.Wait()
 
-    log.Println("✅ Tuple generation and permission checks complete")
-    log.Printf("🔢 Total tuples: %d", cfg.TupleCount)
-    log.Printf("⚙️  Concurrency: %d", cfg.Concurrency)
-    log.Printf("🚦 Checks/sec:  %d", cfg.ChecksPerSecond)
-    log.Printf("🧪 Mode:        %s", map[bool]string{true: "DRY RUN", false: "LIVE"}[dryRun])
-    log.Printf("📈 Allowed:     %d", allowedCount)
-    log.Printf("📉 Denied:      %d", deniedCount)
-    log.Printf("🚨 Failed inserts: %d", failedInserts)
+	log.Println("✅ Tuple generation and permission checks complete")
+	log.Printf("🔢 Total tuples: %d", cfg.TupleCount)
+	log.Printf("⚙️  Concurrency: %d", cfg.Concurrency)
+	log.Printf("🚦 Checks/sec:  %d", cfg.ChecksPerSecond)
+	log.Printf("🧪 Mode:        %s", map[bool]string{true: "DRY RUN", false: "LIVE"}[dryRun])
+	log.Printf("📈 Allowed:     %d", allowedCount)
+	log.Printf("📉 Denied:      %d", deniedCount)
+	log.Printf("🚨 Failed writes to Keto: %d", failedWrites)
 
+	if dryRun {
+		log.Println("⚠️  Dry-run mode: No tuples were written to Keto.")
+	}
 }

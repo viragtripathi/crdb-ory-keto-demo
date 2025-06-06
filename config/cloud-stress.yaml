@@ -3,6 +3,6 @@ keto:
   read_api: "http://localhost:4466"
 
 workload:
-  tuple_count: 1000
-  concurrency: 10
-  checks_per_second: 5
+  tuple_count: 100000
+  concurrency: 100
+  checks_per_second: 200

@@ -1,33 +1,56 @@
 version: '3.9'
 
 services:
-  cockroach:
-    image: cockroachdb/cockroach:latest
-    command: start-single-node --insecure
-    container_name: cockroachdb
-    ports:
-      - "26257:26257"
-      - "8080:8080"
+#  cockroach:
+#    image: cockroachdb/cockroach:latest
+#    command: start-single-node --insecure
+#    container_name: cockroach
+#    ports:
+#      - "26257:26257"
+#      - "8080:8080"
+#    volumes:
+#      - crdb-data:/cockroach/cockroach-data
+
+  keto-migrate:
+    image: oryd/keto:v0.14.0
+    command: migrate up --yes --config /config/config.local.yaml
+    container_name: keto-migrate
     volumes:
-      - crdb-data:/cockroach/cockroach-data
+      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
+    restart: "no"
+    healthcheck:
+      test: ["NONE"]
 
   keto:
-    image: oryd/keto:latest
-    command: serve --config /keto/config.yaml
+    image: oryd/keto:v0.14.0
+    command: serve --config /config/config.local.yaml
     container_name: keto
     volumes:
-      - ./keto/config.yaml:/keto/config.yaml
+      - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.local.yaml
     ports:
-      - "4466:4466"  # read
-      - "4467:4467"  # write
+      - "4466:4466"
+      - "4467:4467"
+    depends_on:
+      - keto-migrate
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4466/health/alive | grep -q 'ok'"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
 
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest
     container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
 
 volumes:
   crdb-data:
+    name: crdb_data

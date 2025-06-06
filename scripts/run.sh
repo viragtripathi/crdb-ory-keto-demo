@@ -1,51 +1,84 @@
 #!/bin/bash
 set -e
 
-echo "🧼 Stopping and removing existing containers..."
+if [[ "$1" == "--help" ]]; then
+  echo ""
+  echo "📦 run.sh: Start Keto and run a sample workload"
+  echo ""
+  echo "Usage:"
+  echo "  ./scripts/run.sh [--mode local|cloud]"
+  echo ""
+  echo "Options:"
+  echo "  --mode      Select mode: 'local' (default) or 'cloud'"
+  echo ""
+  echo "🛠 Starts Docker containers for Keto and Prometheus"
+  echo "   Then runs the workload simulator with default settings"
+  echo ""
+  echo "💡 Make sure CockroachDB is reachable and the config matches the mode"
+  echo "🔗 https://www.ory.sh/docs/keto/install"
+  exit 0
+fi
+
+MODE="local"
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --mode)
+      MODE="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ "$MODE" == "cloud" ]]; then
+  export KETO_CONFIG_PATH=./keto/config.cloud.yaml
+else
+  export KETO_CONFIG_PATH=./keto/config.local.yaml
+fi
+
+echo "🧼 Cleaning up old containers..."
 docker-compose down -v --remove-orphans
 
-echo "🔄 Starting Docker services..."
+echo "🚀 Starting Keto (mode: $MODE)..."
 docker-compose up -d
 
-echo "⏳ Waiting for CockroachDB to be ready..."
-sleep 5
+echo "⏳ Waiting for migrations to complete..."
+until [ "$(docker inspect -f '{{.State.Status}}' keto-migrate 2>/dev/null)" = "exited" ]; do
+  echo "⌛ Still waiting for keto-migrate to finish..."
+  sleep 2
+done
 
-echo "📦 Creating schema in CockroachDB..."
-docker exec -i $(docker ps -qf "ancestor=cockroachdb/cockroach") ./cockroach sql --insecure <<EOF
-CREATE TABLE IF NOT EXISTS public.keto_relation_tuples (
-  shard_id UUID NOT NULL,
-  nid UUID NOT NULL,
-  namespace STRING NOT NULL,
-  object UUID NOT NULL,
-  relation STRING NOT NULL,
-  subject_id UUID NULL,
-  subject_set_namespace STRING NULL,
-  subject_set_object UUID NULL,
-  subject_set_relation STRING NULL,
-  commit_time TIMESTAMPTZ NOT NULL,
-  CONSTRAINT keto_relation_tuples_pkey PRIMARY KEY (shard_id, nid),
-  CONSTRAINT chk_keto_rt_subject_type CHECK (
-    (
-      subject_id IS NULL AND
-      subject_set_namespace IS NOT NULL AND
-      subject_set_object IS NOT NULL AND
-      subject_set_relation IS NOT NULL
-    ) OR (
-      subject_id IS NOT NULL AND
-      subject_set_namespace IS NULL AND
-      subject_set_object IS NULL AND
-      subject_set_relation IS NULL
-    )
-  )
-);
+EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' keto-migrate 2>/dev/null)
+if [ "$EXIT_CODE" != "0" ]; then
+  echo "❌ keto-migrate failed with exit code $EXIT_CODE"
+  docker logs keto-migrate
+  exit 1
+fi
 
-CREATE TABLE IF NOT EXISTS public.keto_uuid_mappings (
-  id UUID NOT NULL,
-  string_representation STRING NOT NULL,
-  CONSTRAINT keto_uuid_mappings_pkey PRIMARY KEY (id)
-);
-EOF
+echo "✅ Migrations completed successfully."
 
-echo "🚀 Running workload simulator..."
-go run cmd/main.go
+echo "⏳ Waiting for Keto API to respond..."
+until curl -sf http://localhost:4466/health/alive > /dev/null; do
+  echo "⌛ Still waiting for Keto API..."
+  sleep 2
+done
 
+echo "✅ Keto API is up."
+
+echo "🔍 Verifying Keto API is reachable..."
+if ! curl -sf http://localhost:4467/health/alive > /dev/null; then
+  echo "❌ Could not reach Ory Keto API at http://localhost:4467"
+  echo "💡 Please ensure Keto is running. See: https://www.ory.sh/docs/keto/install"
+  exit 1
+fi
+
+echo "🔥 Running workload simulator..."
+./crdb-ory-keto-demo \
+  --tuple-count=1000 \
+  --concurrency=10 \
+  --checks-per-second=10 \
+  --keto-api=http://localhost:4467 \
+  --log-file=run.log

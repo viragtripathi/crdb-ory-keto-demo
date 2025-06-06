@@ -1,0 +1,18 @@
+dsn: postgresql://virag:**********@serverless-multi-region-test-943.jxf.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full
+
+namespaces:
+  - id: 0
+    name: documents
+  - id: 1
+    name: users
+
+serve:
+  read:
+    host: 0.0.0.0
+    port: 4466
+  write:
+    host: 0.0.0.0
+    port: 4467
+
+log:
+  level: debug
