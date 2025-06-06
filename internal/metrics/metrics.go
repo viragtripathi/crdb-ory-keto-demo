@@ -38,7 +38,7 @@ func Init() {
 
 	go func() {
 		log.Println("📡 Starting metrics HTTP server on :2112")
-		if err := http.ListenAndServe(":2112", nil); err != nil {
+		if err := http.ListenAndServe("0.0.0.0:2112", nil); err != nil {
 			log.Fatalf("❌ Metrics server failed: %v", err)
 		}
 	}()

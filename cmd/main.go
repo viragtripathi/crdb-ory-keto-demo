@@ -23,6 +23,7 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Simulate workload without API calls")
 	workloadConfig := flag.String("workload-config", "config/config.yaml", "Path to workload config")
 	logFile := flag.String("log-file", "", "Path to log output file")
+	serveMetrics := flag.Bool("serve-metrics", false, "Keep Prometheus metrics endpoint alive after run")
 	verbose := flag.Bool("verbose", true, "Enable verbose logging")
 
 	flag.Usage = func() {
@@ -39,6 +40,7 @@ Options:
   -keto-api            Base URL for Keto Write API (default: http://localhost:4467)
   -workload-config     Path to workload config file (default: config/config.yaml)
   -log-file            Path to write logs to (default: stdout only)
+  -serve-metrics       Keep Prometheus metrics endpoint alive after run (default: false)
   -dry-run             Skip actual writes and permission checks
   -help                Show this help message
 
@@ -112,4 +114,11 @@ Options:
 
 	metrics.Init()
 	generator.RunGenerator(*dryRun)
+
+	// If requested, keep the metrics server alive after run
+	if *serveMetrics {
+		fmt.Println("📊 Prometheus metrics available at http://localhost:2112/metrics")
+		fmt.Println("🔁 Waiting indefinitely for Prometheus to scrape. Ctrl+C to exit.")
+		select {}
+	}
 }
