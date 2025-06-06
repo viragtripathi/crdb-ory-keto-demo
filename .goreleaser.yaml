@@ -22,6 +22,7 @@ archives:
       - config/**
       - keto/**
       - scripts/**
+      - docker-compose.yml
 
 checksum:
   name_template: "checksums.txt"
