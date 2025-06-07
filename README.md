@@ -101,7 +101,51 @@ Run with:
 ./crdb-ory-keto-demo --workload-config=config/small.yaml
 ```
 
-If not specified, the default `config/config.yaml` is used.
+---
+
+## 🔁 Keto API Scaling with Built-in Load Balancer
+
+This project supports horizontally scaling **Ory Keto** using Docker and **HAProxy**.
+
+### ✅ What’s Included
+
+* 3 Keto containers: `keto-1`, `keto-2`, `keto-3`
+* HAProxy load balancing across all instances
+* Built-in integration in both:
+
+    * `./scripts/run.sh`
+    * `./scripts/benchmark.sh`
+
+### 📡 API Endpoints via HAProxy
+
+| Purpose   | Endpoint                |
+|-----------|-------------------------|
+| Read API  | `http://localhost:4466` |
+| Write API | `http://localhost:4467` |
+
+These are used by the workload simulator behind the scenes.
+
+---
+
+### 🔍 Manual Verification (Optional)
+
+To confirm load is distributed across all 3 nodes:
+
+```bash
+docker logs --tail=3 keto-1 && echo "---" && \
+docker logs --tail=3 keto-2 && echo "---" && \
+docker logs --tail=3 keto-3
+```
+
+You should see traffic like:
+
+```
+method:PUT path:/admin/relation-tuples
+method:POST path:/relation-tuples/check
+...
+```
+
+This confirms that the simulator is routing traffic evenly through HAProxy.
 
 ---
 
