@@ -14,9 +14,10 @@ type Config struct {
 	} `yaml:"keto"`
 
 	Workload struct {
-		TupleCount      int `yaml:"tuple_count"`
 		Concurrency     int `yaml:"concurrency"`
 		ChecksPerSecond int `yaml:"checks_per_second"`
+		ReadRatio       int `yaml:"read_ratio"`
+        DurationSec     int `yaml:"duration_sec"`
 	} `yaml:"workload"`
 }
 

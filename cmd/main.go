@@ -17,9 +17,10 @@ import (
 
 func main() {
 	ketoWriteAPI := flag.String("keto-api", "http://localhost:4467", "Base URL for Keto Write API")
-	tupleCount := flag.Int("tuple-count", 0, "Override number of tuples to insert")
 	concurrency := flag.Int("concurrency", 0, "Override number of concurrent workers")
 	checksPerSecond := flag.Int("checks-per-second", 0, "Override checks per second")
+	duration := flag.Int("duration-sec", 0, "Override duration in seconds")
+    readRatio := flag.Int("read-ratio", 0, "Override read/write ratio (e.g. 100 = 100:1)")
 	dryRun := flag.Bool("dry-run", false, "Simulate workload without API calls")
 	workloadConfig := flag.String("workload-config", "config/config.yaml", "Path to workload config")
 	logFile := flag.String("log-file", "", "Path to log output file")
@@ -34,9 +35,10 @@ Usage:
   ./crdb-ory-keto-demo [flags]
 
 Options:
-  -tuple-count         Number of tuples to generate (overrides config file)
   -concurrency         Number of concurrent workers (overrides config file)
   -checks-per-second   Max permission checks per second (overrides config file)
+  -duration-sec        Run for this many seconds (default from config file)
+  -read-ratio          Read-to-write ratio (e.g. 100 means 100 reads per 1 write)
   -keto-api            Base URL for Keto Write API (default: http://localhost:4467)
   -workload-config     Path to workload config file (default: config/config.yaml)
   -log-file            Path to write logs to (default: stdout only)
@@ -56,7 +58,6 @@ Options:
 		os.Exit(0)
 	}
 
-	// Load config
 	if err := config.LoadConfig(*workloadConfig); err != nil {
 		log.Fatalf("❌ Failed to load config: %v", err)
 	}
@@ -66,18 +67,19 @@ Options:
 		config.AppConfig.Keto.ReadAPI = strings.Replace(config.AppConfig.Keto.WriteAPI, ":4467", ":4466", 1)
 	}
 
-	// Apply CLI overrides
-	if *tupleCount > 0 {
-		config.AppConfig.Workload.TupleCount = *tupleCount
-	}
 	if *concurrency > 0 {
 		config.AppConfig.Workload.Concurrency = *concurrency
 	}
 	if *checksPerSecond > 0 {
 		config.AppConfig.Workload.ChecksPerSecond = *checksPerSecond
 	}
+    if *duration > 0 {
+        config.AppConfig.Workload.DurationSec = *duration
+    }
+	if *readRatio > 0 {
+		config.AppConfig.Workload.ReadRatio = *readRatio
+	}
 
-	// Setup logging
 	if *logFile != "" {
 		f, err := os.Create(*logFile)
 		if err != nil {
@@ -94,7 +96,6 @@ Options:
 		log.SetOutput(io.Discard)
 	}
 
-	// Fail-safe: Ensure Keto Read API is available before continuing
 	if !*dryRun {
 		healthURL := config.AppConfig.Keto.ReadAPI + "/health/alive"
 		client := http.Client{Timeout: 3 * time.Second}
@@ -102,20 +103,19 @@ Options:
 		if err != nil || resp.StatusCode != 200 {
 			log.Fatalf(`❌ Unable to reach Ory Keto at %s.
 
-            Make sure Ory Keto is running and reachable.
-            Refer to: https://www.ory.sh/docs/keto/install
+Make sure Ory Keto is running and reachable.
+Refer to: https://www.ory.sh/docs/keto/install
 
-            Details:
-            - Error: %v
-            - HTTP Status: %v
-            `, config.AppConfig.Keto.ReadAPI, err, resp.StatusCode)
+Details:
+- Error: %v
+- HTTP Status: %v
+`, config.AppConfig.Keto.ReadAPI, err, resp.StatusCode)
 		}
 	}
 
 	metrics.Init()
 	generator.RunGenerator(*dryRun)
 
-	// If requested, keep the metrics server alive after run
 	if *serveMetrics {
 		fmt.Println("📊 Prometheus metrics available at http://localhost:2112/metrics")
 		fmt.Println("🔁 Waiting indefinitely for Prometheus to scrape. Ctrl+C to exit.")

@@ -77,8 +77,9 @@ fi
 
 echo "🔥 Running workload simulator..."
 ./crdb-ory-keto-demo \
-  --tuple-count=1000 \
   --concurrency=10 \
-  --checks-per-second=10 \
+  --checks-per-second=1000 \
+  --duration-sec=30 \
+  --read-ratio=100 \
   --keto-api=http://localhost:4467 \
   --log-file=run.log

@@ -1,8 +1,0 @@
-keto:
-  write_api: "http://localhost:4467"
-  read_api: "http://localhost:4466"
-
-workload:
-  tuple_count: 100000
-  concurrency: 100
-  checks_per_second: 200

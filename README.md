@@ -1,6 +1,7 @@
 # crdb-ory-keto-demo
 
 A workload simulator and benchmarking tool for evaluating [Ory Keto](https://www.ory.sh/docs/keto) with [CockroachDB](https://www.cockroachlabs.com/).
+
 It simulates permission tuple insertions and checks at scale — useful for load testing and benchmarking on local or CockroachDB Cloud.
 
 ---
@@ -9,25 +10,25 @@ It simulates permission tuple insertions and checks at scale — useful for load
 
 ### 🟢 1. Quick Demo with Docker
 
-This mode runs Keto + Prometheus in Docker. You run CockroachDB **locally** or use Cockroach Cloud.
+This mode runs Keto (with 3 replicas) + Prometheus + HAProxy in Docker. You can connect to CockroachDB **locally** or use **CockroachDB Cloud**.
 
 ```bash
 ./scripts/run.sh --mode local       # for local CockroachDB
 ./scripts/run.sh --mode cloud       # for CockroachDB Cloud
-```
+````
 
-It:
+It will:
 
-* Starts Keto and Prometheus
-* Runs `keto-migrate`
-* Waits for API readiness (migration + health)
-* Launches the simulator binary
+* Start 3 Keto containers behind HAProxy
+* Run `keto-migrate` once
+* Wait for health checks
+* Launch the workload simulator
 
 ---
 
 ### 📊 2. Benchmarking Mode
 
-Runs a full test matrix of tuple volumes, concurrency, and check rates:
+Runs a full matrix of duration, concurrency, checks/sec, and read/write ratios:
 
 ```bash
 ./scripts/benchmark.sh --mode local
@@ -40,15 +41,27 @@ Results are saved to:
 benchmark_results.csv
 ```
 
+Sample row:
+
+```
+timestamp,duration_sec,concurrency,checks_per_sec,read_ratio,allowed,denied,writes,reads,failed
+2025-06-09T18:00:00Z,30,10,1000,100,34900,0,350,34900,0
+```
+
 ---
 
 ### 🛠️ 3. Manual Binary Run
 
 ```bash
-./crdb-ory-keto-demo   --tuple-count=1000   --concurrency=10   --checks-per-second=5   --workload-config=config/stress.yaml   --keto-api=http://localhost:4467   --log-file=run.log
+./crdb-ory-keto-demo \
+  --duration-sec=60 \
+  --concurrency=10 \
+  --checks-per-second=1000 \
+  --read-ratio=100 \
+  --workload-config=config/stress.yaml \
+  --keto-api=http://localhost:4467 \
+  --log-file=run.log
 ```
-
-You can override any value from the workload config using flags.
 
 ---
 
@@ -56,17 +69,17 @@ You can override any value from the workload config using flags.
 
 Two config files let you switch between environments:
 
-* `keto/config.local.yaml` → points to `host.docker.internal`
-* `keto/config.cloud.yaml` → points to CockroachDB Cloud
+* `keto/config.local.yaml` → for Docker with `host.docker.internal`
+* `keto/config.cloud.yaml` → for Cockroach Cloud
 
-Your `docker-compose.yml` is wired to:
+Your Docker Compose respects this:
 
 ```yaml
 volumes:
   - ${KETO_CONFIG_PATH:-./keto/config.local.yaml}:/config/config.yaml
 ```
 
-So switching is as easy as:
+To switch modes:
 
 ```bash
 KETO_CONFIG_PATH=./keto/config.cloud.yaml ./scripts/run.sh --mode cloud
@@ -82,62 +95,76 @@ KETO_CONFIG_PATH=./keto/config.local.yaml ./scripts/run.sh --mode local
 
 ## 📁 Workload Config Profiles
 
-You can define workload profiles like:
+You can define profiles like:
 
 ```yaml
-# config/small.yaml
 keto:
   write_api: "http://localhost:4467"
   read_api: "http://localhost:4466"
+
 workload:
-  tuple_count: 500
-  concurrency: 5
-  checks_per_second: 5
+  concurrency: 10
+  checks_per_second: 1000
+  read_ratio: 100
+  duration_sec: 60
 ```
 
 Run with:
 
 ```bash
-./crdb-ory-keto-demo --workload-config=config/small.yaml
+./crdb-ory-keto-demo --workload-config=config/stress.yaml
 ```
 
 ---
 
-## 🔁 Keto API Scaling with Built-in Load Balancer
+## 📊 Understanding `read_ratio`
 
-This project supports horizontally scaling **Ory Keto** using Docker and **HAProxy**.
+This option controls **how many reads per write**:
 
-### ✅ What’s Included
+```yaml
+read_ratio: 100
+```
+
+Means: for every 1 write, the workload will perform approximately 100 permission checks.
+
+This simulates **real-world workloads**, where reads vastly outnumber writes.
+
+Results include detailed breakdowns:
+
+```
+📤 Writes:      345
+👁️  Reads:       34396
+📊 Read/Write ratio: 99.7:1
+```
+
+---
+
+## 🔁 Scaled Keto + Load Balancing (HAProxy)
+
+The setup includes:
 
 * 3 Keto containers: `keto-1`, `keto-2`, `keto-3`
-* HAProxy load balancing across all instances
-* Built-in integration in both:
+* HAProxy fronting both APIs
+* Used by both `run.sh` and `benchmark.sh`
 
-    * `./scripts/run.sh`
-    * `./scripts/benchmark.sh`
-
-### 📡 API Endpoints via HAProxy
+### 📡 API Endpoints
 
 | Purpose   | Endpoint                |
 |-----------|-------------------------|
 | Read API  | `http://localhost:4466` |
 | Write API | `http://localhost:4467` |
 
-These are used by the workload simulator behind the scenes.
-
 ---
 
-### 🔍 Manual Verification (Optional)
-
-To confirm load is distributed across all 3 nodes:
+### 🔍 Manual Verification of Load Distribution
 
 ```bash
-docker logs --tail=3 keto-1 && echo "---" && \
-docker logs --tail=3 keto-2 && echo "---" && \
+docker logs --tail=3 keto-1 && echo "---"
+docker logs --tail=3 keto-2 && echo "---"
 docker logs --tail=3 keto-3
 ```
 
-You should see traffic like:
+Look for:
 
 ```
 method:PUT path:/admin/relation-tuples
@@ -145,43 +172,38 @@ method:POST path:/relation-tuples/check
 ...
 ```
 
-This confirms that the simulator is routing traffic evenly through HAProxy.
+You should see requests across all nodes.
 
 ---
 
 ## 🧪 Debugging & Troubleshooting
 
-### ✅ Confirm Keto Write API is Healthy:
-
-```bash
-curl -s http://localhost:4467/health/alive
-```
-
-### ✅ Confirm Keto Read API is Healthy:
+### ✅ Confirm APIs:
 
 ```bash
 curl -s http://localhost:4466/health/alive
+curl -s http://localhost:4467/health/alive
 ```
 
-### ✅ Dump final config mounted in Docker:
+### ✅ See Final Config:
 
 ```bash
-docker exec -it keto cat /config/config.yaml
+docker exec -it keto-1 cat /config/config.yaml
 ```
 
-### ✅ Run Keto manually to test config:
+### ✅ Run Keto Standalone:
 
 ```bash
 docker run --rm -v "$(pwd)/keto:/config" oryd/keto:v0.14.0 serve --config /config/config.yaml
 ```
 
-### ✅ Show all migrations:
+### ✅ Show Migration Logs:
 
 ```bash
 docker logs keto-migrate
 ```
 
-### ✅ Full verify check for write+read API:
+### ✅ Manual Tuple + Check:
 
 ```bash
 curl -i -X PUT http://localhost:4467/admin/relation-tuples \
@@ -195,19 +217,6 @@ curl -s -X POST http://localhost:4466/relation-tuples/check \
 
 ---
 
-### 🛑 Unreachable Keto Detection
-
-If Ory Keto is not reachable, you will see:
-
-```
-❌ Failed to reach Ory Keto at http://localhost:4467
-- Error: dial tcp [::1]:4467: connect: connection refused
-```
-
-The tool will exit cleanly.
-
----
-
 ## 📦 Build
 
 To build the binary locally:
@@ -218,67 +227,59 @@ make build
 
 ---
 
-## ❓ Why Use the Ory Keto API in This Project?
+## ❓ Why Use the Keto API?
 
-This simulator doesn't just benchmark CockroachDB — it mimics **real-world access control workflows** by calling Ory Keto's REST APIs.
+This simulator doesn't just benchmark the DB — it mimics **real application behavior** by calling Ory Keto’s HTTP APIs.
 
-Here’s why:
+---
 
-### ✅ 1. Realistic Tuple Ingestion
+### ✅ 1. Realistic Workload
 
-Instead of just writing to the database, the simulator **mirrors every relation tuple** to:
+Inserts tuples via:
 
 ```http
 PUT /admin/relation-tuples
 ```
 
-This mimics how production apps interact with Keto.
-
 ---
 
-### ✅ 2. Access Control Validation
+### ✅ 2. Authorization Checks
 
-After inserting a tuple, the simulator performs a permission check via:
+Every inserted tuple is checked with:
 
 ```http
 POST /relation-tuples/check
 ```
 
-This:
+---
 
-* Validates tuple registration
-* Measures API response under load
-* Tests authorization correctness
+### ✅ 3. API Load Is the Benchmark
+
+This simulates:
+
+* Permission graph resolution
+* Query path performance
+* Internal caching/indexing behavior
 
 ---
 
-### ✅ 3. API Load Is the Real Benchmark
-
-By using the API, the simulator:
-
-* Benchmarks **Keto’s REST pipeline**, not just the DB
-* Simulates real-world usage patterns
-* Surfaces rate limits or latency issues
-
----
-
-### 🚫 Why Not Write Directly to the DB?
+### 🚫 Why Not Use Direct DB Writes?
 
 Because:
 
-* You’d bypass consistency & validation
-* Keto wouldn’t register or index those tuples
-* Benchmarks would be meaningless
+* It skips validation/indexing
+* Fails to reflect production reality
+* Produces misleading benchmarks
 
 ---
 
 ## ✅ TL;DR
 
-> Using the API is essential to simulate real-world usage, validate authorization correctness, and benchmark the actual control path — not just storage speed.
+> Benchmark the actual access control API, not just the database behind it.
 
 ---
 
 ## 📖 References
 
-* [Ory Keto Install Guide](https://www.ory.sh/docs/keto/install)
-* [CockroachDB Start Guide](https://www.cockroachlabs.com/docs/stable/start-a-local-cluster.html)
+* [Ory Keto Docs](https://www.ory.sh/docs/keto)
+* [CockroachDB Docs](https://www.cockroachlabs.com/docs/)

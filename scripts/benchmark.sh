@@ -77,35 +77,40 @@ if ! curl -sf "$KETO_API/health/alive" > /dev/null; then
 fi
 
 echo "📈 Starting benchmarks..."
-echo "timestamp,tuple_count,concurrency,checks_per_sec,duration_sec,allowed,denied,failed" > "$OUTPUT_CSV"
+echo "timestamp,db_type,duration_sec,concurrency,checks_per_sec,read_ratio,allowed,denied,writes,reads,failed" > "$OUTPUT_CSV"
 
 matrix=(
-  "1000 5 5"
-  "5000 10 10"
-  "10000 20 20"
+  "30 5 1000 100"
+  "60 10 2000 100"
+  "60 10 1000 10"     # optional lower ratio
+  "90 20 3000 100"
+  "120 50 5000 200"   # high scale
 )
 
 for row in "${matrix[@]}"; do
-  read -r TUPLES CONC CHECKS <<< "$row"
-  echo "🔄 Benchmark: $TUPLES tuples, $CONC workers, $CHECKS checks/sec"
+  read -r DURATION CONC CHECKS RATIO <<< "$row"
+  echo "🔄 Running benchmark: ${DURATION}s, ${CONC} workers, ${CHECKS} checks/sec, ${RATIO}:1 read/write"
 
-  LOG="bench_${TUPLES}_${CONC}.log"
+  LOG="bench_${DURATION}s_${CONC}_${RATIO}.log"
   START=$(date +%s)
 
   $APP_BINARY \
-    --tuple-count="$TUPLES" \
+    --duration-sec="$DURATION" \
     --concurrency="$CONC" \
     --checks-per-second="$CHECKS" \
-    --log-file="$LOG" \
-    --keto-api="$KETO_API"
+    --read-ratio="$RATIO" \
+    --keto-api=http://localhost:4467 \
+    --log-file="$LOG"
 
   END=$(date +%s)
-  DURATION=$((END - START))
+  ELAPSED=$((END - START))
 
   ALLOWED=$(grep "📈 Allowed" "$LOG" | awk '{print $NF}' || echo "0")
   DENIED=$(grep "📉 Denied" "$LOG" | awk '{print $NF}' || echo "0")
+  WRITES=$(grep "📤 Writes" "$LOG" | awk '{print $NF}' || echo "0")
+  READS=$(grep "👁️  Reads" "$LOG" | awk '{print $NF}' || echo "0")
   FAILED=$(grep "🚨 Failed writes" "$LOG" | awk '{print $NF}' || echo "0")
 
-  echo "$(date +%Y-%m-%dT%H:%M:%S),$TUPLES,$CONC,$CHECKS,$DURATION,$ALLOWED,$DENIED,$FAILED" >> "$OUTPUT_CSV"
-  echo "✅ Done: $TUPLES in ${DURATION}s → allowed=$ALLOWED denied=$DENIED failed=$FAILED"
+  echo "$(date +%Y-%m-%dT%H:%M:%S),CockroachDB,${DURATION},${CONC},${CHECKS},${RATIO},${ALLOWED},${DENIED},${WRITES},${READS},${FAILED}" >> "$OUTPUT_CSV"
+  echo "✅ Done in ${ELAPSED}s → allowed=${ALLOWED} denied=${DENIED} writes=${WRITES} reads=${READS}"
 done

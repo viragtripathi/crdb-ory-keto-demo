@@ -3,6 +3,7 @@ keto:
   read_api: "http://localhost:4466"
 
 workload:
-  tuple_count: 50000
   concurrency: 50
-  checks_per_second: 100
+  checks_per_second: 5000
+  read_ratio: 200             # 💡 For every write, do ~100 reads i.e. number of reads per write
+  duration_sec: 120            # 💡 Run for 60 seconds, set to 0 to run indefinitely
