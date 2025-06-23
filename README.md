@@ -92,7 +92,6 @@ Or
 | `--workload-config`   | YAML path for workload config              |
 | `--log-file`          | Path to write logs                         |
 | `--verbose`           | Enable stdout logging                      |
-| `--silent`            | Disable all logging                        |
 | `--max-retries`       | Max retry attempts per request             |
 | `--retry-delay`       | Delay between retries (ms)                 |
 | `--request-timeout`   | Per-request timeout (seconds)              |
