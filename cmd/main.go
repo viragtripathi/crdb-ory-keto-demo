@@ -36,7 +36,7 @@ func main() {
 	retryDelay := flag.Int("retry-delay", 200, "Override delay (ms) between retries")
 	maxOpenConns := flag.Int("max-open-conns", 100, "Max open HTTP connections (default: 100)")
     maxIdleConns := flag.Int("max-idle-conns", 100, "Max idle HTTP connections (default: 100)")
-	logFile := flag.String("log-file", "crdb-ory-keto-loader.log", "Path to log output file")
+	logFile := flag.String("log-file", "", "Path to log output file")
 	serveMetrics := flag.Bool("serve-metrics", false, "Keep Prometheus metrics endpoint alive after run")
 	verbose := flag.Bool("verbose", true, "Enable verbose logging")
 
