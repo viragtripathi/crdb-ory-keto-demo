@@ -1,4 +1,4 @@
-dsn: postgresql://virag:**********@serverless-multi-region-test-943.jxf.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full
+dsn: postgresql://virag:rjQNdHjSNywGsis4uKveoQ@serverless-multi-region-test-943.jxf.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full
 
 namespaces:
   - id: 0

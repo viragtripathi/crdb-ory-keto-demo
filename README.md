@@ -62,6 +62,45 @@ timestamp,duration_sec,concurrency,checks_per_sec,read_ratio,allowed,denied,writ
   --keto-api=http://localhost:4467 \
   --log-file=run.log
 ```
+Or
+```bash
+./crdb-ory-keto-demo \
+  --duration-sec=60 \
+  --concurrency=10 \
+  --checks-per-second=1000 \
+  --read-ratio=100 \
+  --max-retries=3 \
+  --retry-delay=200 \
+  --max-open-conns=200 \
+  --max-idle-conns=200 \
+  --request-timeout=10 \
+  --keto-api=http://localhost:4467 \
+  --log-file=run.log \
+  --verbose=false 
+```
+
+---
+## 🧪 Flags Summary
+
+| Flag                  | Description                                |
+|-----------------------|--------------------------------------------|
+| `--duration-sec`      | Duration to run the benchmark              |
+| `--concurrency`       | Number of workers                          |
+| `--checks-per-second` | Max RPS for permission checks              |
+| `--read-ratio`        | Reads per write (e.g. 100 means 100:1)     |
+| `--keto-api`          | Base URL for Keto Write API                |
+| `--workload-config`   | YAML path for workload config              |
+| `--log-file`          | Path to write logs                         |
+| `--verbose`           | Enable stdout logging                      |
+| `--silent`            | Disable all logging                        |
+| `--max-retries`       | Max retry attempts per request             |
+| `--retry-delay`       | Delay between retries (ms)                 |
+| `--request-timeout`   | Per-request timeout (seconds)              |
+| `--max-open-conns`    | Max total HTTP connections                 |
+| `--max-idle-conns`    | Max idle connections                       |
+| `--serve-metrics`     | Keep metrics server running after workload |
+| `--dry-run`           | Simulate workload without calling APIs     |
+
 
 ---
 

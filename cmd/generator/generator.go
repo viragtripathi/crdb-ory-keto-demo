@@ -49,6 +49,7 @@ func RunGenerator(dryRun bool) {
 						log.Printf("❌ WriteTuple failed: %v", err)
 						failedWrites++
 					} else {
+						log.Printf("📤 Tuple mirrored to Keto: subject=%s, object=%s\n", subjectFull, objectID)
 						// Push the same tuple read_ratio times
 						for j := 0; j < cfg.ReadRatio; j++ {
 							tupleChan <- tuple{Subject: subjectFull, Object: objectID}
@@ -71,7 +72,7 @@ func RunGenerator(dryRun bool) {
 					allowed := false
 					if !dryRun {
 						allowed = keto.CheckPermission("documents", t.Object, "viewer", t.Subject)
-						log.Printf("🔒 Permission check result: subject=%s, object=%s, allowed=%v", t.Subject, t.Object, allowed)
+						log.Printf("🔒 Permission check result: subject=%s, object=%s, allowed=%v\n", t.Subject, t.Object, allowed)
 					}
 
 					if allowed {

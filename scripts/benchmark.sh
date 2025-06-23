@@ -82,9 +82,9 @@ echo "timestamp,db_type,duration_sec,concurrency,checks_per_sec,read_ratio,allow
 matrix=(
   "30 5 1000 100"
   "60 10 2000 100"
-  "60 10 1000 10"     # optional lower ratio
+  "60 10 1000 10"
   "90 20 3000 100"
-  "120 50 5000 200"   # high scale
+  "120 50 5000 200"
 )
 
 for row in "${matrix[@]}"; do
@@ -99,7 +99,10 @@ for row in "${matrix[@]}"; do
     --concurrency="$CONC" \
     --checks-per-second="$CHECKS" \
     --read-ratio="$RATIO" \
-    --keto-api=http://localhost:4467 \
+    --max-retries=2 \
+    --retry-delay=200 \
+    --verbose=false \
+    --keto-api="$KETO_API" \
     --log-file="$LOG"
 
   END=$(date +%s)

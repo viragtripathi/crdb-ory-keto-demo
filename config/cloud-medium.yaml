@@ -3,7 +3,13 @@ keto:
   read_api: "http://localhost:4466"
 
 workload:
-  concurrency: 10
-  checks_per_second: 1000
-  read_ratio: 100             # 💡 For every write, do ~100 reads i.e. number of reads per write
-  duration_sec: 60            # 💡 Run for 60 seconds, set to 0 to run indefinitely
+  concurrency: 10                        # Number of total goroutines (1 writer + 9 readers for 100:1 ratio)
+  checks_per_second: 1000               # Global rate limit for permission checks
+  read_ratio: 100                        # For every write, ~100 reads will be attempted
+  duration_sec: 60                       # Run duration in seconds
+  max_retries: 3                         # Max retry attempts for write/read failures
+  retry_delay_ms: 50                     # Delay between retries in milliseconds
+  request_timeout_sec: 5
+  max_open_conns: 100
+  max_idle_conns: 100
+  verbose: false                         # Enable detailed logs for each write/read

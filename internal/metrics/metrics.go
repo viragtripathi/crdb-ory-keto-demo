@@ -24,9 +24,31 @@ var (
 	)
 )
 
+var (
+	RetryAttempts = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "retry_attempts_total",
+			Help: "Total number of retry attempts",
+		})
+	RetrySuccess = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "retry_success_total",
+			Help: "Total retries that eventually succeeded",
+		})
+	RetryDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "retry_duration_seconds",
+			Help:    "Histogram of retry durations",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+		})
+)
+
 func Init() {
 	prometheus.MustRegister(TupleInsertDuration)
 	prometheus.MustRegister(PermissionCheckCounter)
+	prometheus.MustRegister(RetryAttempts)
+	prometheus.MustRegister(RetrySuccess)
+	prometheus.MustRegister(RetryDuration)
 
 	// Health and metrics endpoints
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {

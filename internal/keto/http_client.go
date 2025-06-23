@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/viragtripathi/crdb-ory-keto-demo/internal/config"
+	"github.com/viragtripathi/crdb-ory-keto-demo/internal/metrics"
 )
 
 type CheckRequest struct {
@@ -29,7 +32,35 @@ type RelationTuple struct {
 	SubjectID string `json:"subject_id"`
 }
 
+// Shared HTTP client with pooling and connection reuse
+var (
+	sharedClient *http.Client
+	clientOnce   sync.Once
+)
+
+func initClient() {
+	clientOnce.Do(func() {
+		cfg := config.AppConfig.Workload
+		log.Printf("🔧 HTTP Pool: MaxIdleConns=%d, MaxIdleConnsPerHost=%d, MaxConnsPerHost=%d\n",
+        	cfg.MaxIdleConns, cfg.MaxIdleConns, cfg.MaxOpenConns)
+		tr := &http.Transport{
+			MaxIdleConns:        cfg.MaxIdleConns,
+			MaxIdleConnsPerHost: cfg.MaxIdleConns,
+			MaxConnsPerHost:     cfg.MaxOpenConns,
+			IdleConnTimeout:     90 * time.Second,
+			DisableCompression:  false,
+		}
+		sharedClient = &http.Client{
+			Transport: tr,
+			Timeout:   time.Duration(cfg.RequestTimeoutSec) * time.Second,
+		}
+	})
+}
+
 func CheckPermission(namespace, object, relation, subjectID string) bool {
+	cfg := config.AppConfig.Workload
+	initClient()
+
 	reqBody := CheckRequest{
 		Namespace: namespace,
 		Object:    object,
@@ -37,42 +68,49 @@ func CheckPermission(namespace, object, relation, subjectID string) bool {
 		SubjectID: subjectID,
 	}
 
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		fmt.Printf("❌ Error marshaling check request: %v\n", err)
-		return false
-	}
-
 	url := config.AppConfig.Keto.ReadAPI + "/relation-tuples/check"
-	client := &http.Client{Timeout: 5 * time.Second}
-
 	var resp *http.Response
-	for attempt := 1; attempt <= 3; attempt++ {
-		resp, err = client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	var err error
+
+	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
+		start := time.Now()
+
+		jsonData, marshalErr := json.Marshal(reqBody)
+		if marshalErr != nil {
+			log.Printf("❌ Error marshaling check request: %v\n", marshalErr)
+			return false
+		}
+
+		resp, err = sharedClient.Post(url, "application/json", bytes.NewBuffer(jsonData))
+		metrics.RetryAttempts.Inc()
+
 		if err == nil && resp != nil && resp.StatusCode == 200 {
+			metrics.RetrySuccess.Inc()
+			metrics.RetryDuration.Observe(time.Since(start).Seconds())
 			break
 		}
-		if attempt < 3 {
-			fmt.Printf("🔁 Retry %d: Keto check failed (status=%v, error=%v)\n", attempt, getStatus(resp), err)
-			time.Sleep(100 * time.Millisecond)
+
+		if attempt < cfg.MaxRetries {
+			log.Printf("🔁 Retry %d: Keto check failed (status=%v, error=%v)\n", attempt, getStatus(resp), err)
+			time.Sleep(time.Duration(cfg.RetryDelayMillis) * time.Millisecond)
 		}
 	}
 
 	if err != nil || resp == nil {
-		fmt.Printf("❌ Final failure: Keto check failed after 3 attempts. Error: %v\n", err)
+		log.Printf("❌ Final failure: Keto check failed after %d attempts. Error: %v\n", cfg.MaxRetries, err)
 		return false
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Printf("⚠️  Unexpected status from Keto: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+		log.Printf("⚠️ Unexpected status from Keto: %d\nResponse body: %s\n", resp.StatusCode, string(body))
 		return false
 	}
 
 	var checkResp CheckResponse
 	if err := json.NewDecoder(resp.Body).Decode(&checkResp); err != nil {
-		fmt.Printf("❌ Error decoding Keto check response: %v\n", err)
+		log.Printf("❌ Error decoding Keto check response: %v\n", err)
 		return false
 	}
 
@@ -80,6 +118,9 @@ func CheckPermission(namespace, object, relation, subjectID string) bool {
 }
 
 func WriteTuple(namespace, object, relation, subjectID string) error {
+	cfg := config.AppConfig.Workload
+	initClient()
+
 	tuple := RelationTuple{
 		Namespace: namespace,
 		Object:    object,
@@ -89,26 +130,52 @@ func WriteTuple(namespace, object, relation, subjectID string) error {
 
 	jsonData, err := json.Marshal(tuple)
 	if err != nil {
-		return fmt.Errorf("failed to marshal tuple: %w", err)
+		log.Printf("failed to marshal tuple: %v", err)
+        return fmt.Errorf("failed to marshal tuple: %w", err)
+
 	}
 
 	url := config.AppConfig.Keto.WriteAPI + "/admin/relation-tuples"
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	var resp *http.Response
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("HTTP request failed: %w", err)
+	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
+		start := time.Now()
+
+		// Create a new request and buffer on every retry
+		req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(jsonData))
+		if err != nil {
+		    log.Printf("failed to build request: %v", err)
+            return fmt.Errorf("failed to build request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err = sharedClient.Do(req)
+		metrics.RetryAttempts.Inc()
+
+		if err == nil && resp.StatusCode < 300 {
+			metrics.RetrySuccess.Inc()
+			metrics.RetryDuration.Observe(time.Since(start).Seconds())
+			break
+		}
+
+		if attempt < cfg.MaxRetries {
+			log.Printf("🔁 Retry %d: Keto write failed (status=%v, error=%v)\n", attempt, getStatus(resp), err)
+			time.Sleep(time.Duration(cfg.RetryDelayMillis) * time.Millisecond)
+		}
+	}
+
+	if err != nil || resp == nil {
+		log.Printf("❌ Final failure: WriteTuple failed after %d attempts: %v", cfg.MaxRetries, err)
+        return fmt.Errorf("❌ Final failure: WriteTuple failed after %d attempts: %w", cfg.MaxRetries, err)
+
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("PUT failed: status=%v body=%s", resp.StatusCode, string(body))
+		log.Printf("PUT failed: status=%v body=%s", resp.StatusCode, string(body))
+        return fmt.Errorf("PUT failed: status=%v body=%s", resp.StatusCode, string(body))
+
 	}
 
 	return nil
