@@ -1,3 +1,14 @@
+## ⚠️
+
+This repository is being replaced by 👉 [**`http-loadgen`**](https://github.com/viragtripathi/http-loadgen), a more flexible and general-purpose HTTP benchmarking tool.
+
+It fully supports:
+- ✅ Ory Keto API testing
+- ⚙️ Any HTTP-based API (read/write patterns)
+- 📈 Prometheus metrics, retry logic, templated configs
+
+> Start here: [https://github.com/viragtripathi/http-loadgen](https://github.com/viragtripathi/http-loadgen)
+
 # crdb-ory-keto-demo
 
 A workload simulator and benchmarking tool for evaluating [Ory Keto](https://www.ory.sh/docs/keto) with [CockroachDB](https://www.cockroachlabs.com/).
